@@ -43,6 +43,10 @@ private:
   uint16_t    m_bufferPtr;
   uint16_t    m_lostCount;
   uint8_t     m_frameCount;
+  uint16_t    m_syncCandidateAges[8U];
+  uint16_t    m_syncCandidateRSSI[8U];
+  uint8_t     m_syncCandidateErrors[8U];
+  uint8_t     m_syncCandidatePtr;
 
   void processNone(bool bit);
   void processData(bool bit);

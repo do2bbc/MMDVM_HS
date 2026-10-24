@@ -24,8 +24,12 @@
 
 const uint8_t SYNC_BIT_START_ERRS = 3U;
 const uint8_t SYNC_BIT_RUN_ERRS   = 4U;
+const uint8_t SYNC_BIT_CANDIDATE_ERRS = 6U;
 
 const unsigned int MAX_SYNC_FRAMES = 1U + 1U;
+const unsigned int SYNC_CANDIDATE_COUNT = 8U;
+const unsigned int SYNC_CANDIDATE_WINDOW = 4U;
+const unsigned int SYNC_CANDIDATE_EXPIRED = YSF_FRAME_LENGTH_BITS + SYNC_CANDIDATE_WINDOW + 1U;
 
 const uint8_t BIT_MASK_TABLE[] = {0x80U, 0x40U, 0x20U, 0x10U, 0x08U, 0x04U, 0x02U, 0x01U};
 
@@ -38,9 +42,16 @@ m_outBuffer(),
 m_buffer(NULL),
 m_bufferPtr(0U),
 m_lostCount(0U),
-m_frameCount(0U)
+m_frameCount(0U),
+m_syncCandidateAges(),
+m_syncCandidateRSSI(),
+m_syncCandidateErrors(),
+m_syncCandidatePtr(0U)
 {
   m_buffer = m_outBuffer + 1U;
+
+  for (uint8_t i = 0U; i < SYNC_CANDIDATE_COUNT; i++)
+    m_syncCandidateAges[i] = SYNC_CANDIDATE_EXPIRED;
 }
 
 void CYSFRX::reset()
@@ -50,6 +61,10 @@ void CYSFRX::reset()
   m_bufferPtr = 0U;
   m_lostCount = 0U;
   m_frameCount = 0U;
+  m_syncCandidatePtr = 0U;
+
+  for (uint8_t i = 0U; i < SYNC_CANDIDATE_COUNT; i++)
+    m_syncCandidateAges[i] = SYNC_CANDIDATE_EXPIRED;
 }
 
 void CYSFRX::databit(bool bit)
@@ -66,10 +81,29 @@ void CYSFRX::processNone(bool bit)
   if (bit)
     m_bitBuffer |= 0x01U;
 
+  for (uint8_t i = 0U; i < SYNC_CANDIDATE_COUNT; i++) {
+    if (m_syncCandidateAges[i] < SYNC_CANDIDATE_EXPIRED)
+      m_syncCandidateAges[i]++;
+  }
+
   // Fuzzy matching of the data sync bit sequence
   const uint8_t syncErrors = countBits64((m_bitBuffer & YSF_SYNC_BITS_MASK) ^ YSF_SYNC_BITS);
   if (syncErrors <= SYNC_BIT_START_ERRS) {
-    DEBUG2("YSFRX: start sync errors", syncErrors);
+    uint8_t previousErrors = 0xFFU;
+    uint16_t previousRSSI = 0U;
+
+    for (uint8_t i = 0U; i < SYNC_CANDIDATE_COUNT; i++) {
+      const uint16_t age = m_syncCandidateAges[i];
+      if (age >= (YSF_FRAME_LENGTH_BITS - SYNC_CANDIDATE_WINDOW) &&
+          age <= (YSF_FRAME_LENGTH_BITS + SYNC_CANDIDATE_WINDOW) &&
+          m_syncCandidateErrors[i] < previousErrors) {
+        previousErrors = m_syncCandidateErrors[i];
+        previousRSSI = m_syncCandidateRSSI[i];
+      }
+    }
+
+    DEBUG3("YSFRX: start sync errors/previous", syncErrors, previousErrors);
+    DEBUG2("YSFRX: previous-frame raw RSSI", previousRSSI);
     for (uint8_t i = 0U; i < YSF_SYNC_LENGTH_BYTES; i++)
       m_buffer[i] = YSF_SYNC_BYTES[i];
 
@@ -79,6 +113,13 @@ void CYSFRX::processNone(bool bit)
     m_state     = YSFRXS_DATA;
 
     io.setDecode(true);
+  } else if (syncErrors <= SYNC_BIT_CANDIDATE_ERRS) {
+    m_syncCandidateAges[m_syncCandidatePtr] = 0U;
+    m_syncCandidateRSSI[m_syncCandidatePtr] = io.readRSSI();
+    m_syncCandidateErrors[m_syncCandidatePtr] = syncErrors;
+    m_syncCandidatePtr++;
+    if (m_syncCandidatePtr >= SYNC_CANDIDATE_COUNT)
+      m_syncCandidatePtr = 0U;
   }
   
 }
