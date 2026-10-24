@@ -65,8 +65,9 @@ void CYSFRX::processNone(bool bit)
     m_bitBuffer |= 0x01U;
 
   // Fuzzy matching of the data sync bit sequence
-  if (countBits64((m_bitBuffer & YSF_SYNC_BITS_MASK) ^ YSF_SYNC_BITS) <= SYNC_BIT_START_ERRS) {
-    DEBUG1("YSFRX: sync found in None");
+  const uint8_t syncErrors = countBits64((m_bitBuffer & YSF_SYNC_BITS_MASK) ^ YSF_SYNC_BITS);
+  if (syncErrors <= SYNC_BIT_START_ERRS) {
+    DEBUG2("YSFRX: start sync errors", syncErrors);
     for (uint8_t i = 0U; i < YSF_SYNC_LENGTH_BYTES; i++)
       m_buffer[i] = YSF_SYNC_BYTES[i];
 
@@ -94,8 +95,10 @@ void CYSFRX::processData(bool bit)
   // Only search for a sync in the right place +-2 bits
   if (m_bufferPtr >= (YSF_SYNC_LENGTH_BITS - 2U) && m_bufferPtr <= (YSF_SYNC_LENGTH_BITS + 2U)) {
     // Fuzzy matching of the data sync bit sequence
-    if (countBits64((m_bitBuffer & YSF_SYNC_BITS_MASK) ^ YSF_SYNC_BITS) <= SYNC_BIT_RUN_ERRS) {
-      DEBUG2("YSFRX: found sync in Data, pos", m_bufferPtr - YSF_SYNC_LENGTH_BITS);
+    const uint8_t syncErrors = countBits64((m_bitBuffer & YSF_SYNC_BITS_MASK) ^ YSF_SYNC_BITS);
+    if (syncErrors <= SYNC_BIT_RUN_ERRS) {
+      const int16_t syncOffset = int16_t(m_bufferPtr) - int16_t(YSF_SYNC_LENGTH_BITS);
+      DEBUG3("YSFRX: data sync offset/errors", syncOffset, syncErrors);
       m_lostCount = MAX_SYNC_FRAMES;
       m_bufferPtr = YSF_SYNC_LENGTH_BITS;
     }
