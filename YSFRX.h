@@ -42,6 +42,7 @@ private:
   uint8_t*    m_buffer;
   uint16_t    m_bufferPtr;
   uint16_t    m_lostCount;
+  uint8_t     m_frameCount;
 
   void processNone(bool bit);
   void processData(bool bit);

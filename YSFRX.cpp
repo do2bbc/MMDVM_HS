@@ -37,7 +37,8 @@ m_bitBuffer(0x00U),
 m_outBuffer(),
 m_buffer(NULL),
 m_bufferPtr(0U),
-m_lostCount(0U)
+m_lostCount(0U),
+m_frameCount(0U)
 {
   m_buffer = m_outBuffer + 1U;
 }
@@ -48,6 +49,7 @@ void CYSFRX::reset()
   m_bitBuffer = 0x00U;
   m_bufferPtr = 0U;
   m_lostCount = 0U;
+  m_frameCount = 0U;
 }
 
 void CYSFRX::databit(bool bit)
@@ -73,6 +75,7 @@ void CYSFRX::processNone(bool bit)
 
     m_lostCount = MAX_SYNC_FRAMES;
     m_bufferPtr = YSF_SYNC_LENGTH_BITS;
+    m_frameCount = 0U;
     m_state     = YSFRXS_DATA;
 
     io.setDecode(true);
@@ -109,7 +112,8 @@ void CYSFRX::processData(bool bit)
     m_lostCount--;
     // We've not seen a data sync for too long, signal RXLOST and change to RX_NONE
     if (m_lostCount == 0U) {
-      DEBUG1("YSFRX: sync timed out, lost lock");
+      const uint16_t rssi = io.readRSSI();
+      DEBUG3("YSFRX: sync timed out frames/raw RSSI", m_frameCount, rssi);
       io.setDecode(false);
       serial.writeYSFLost();
       reset();
@@ -117,6 +121,7 @@ void CYSFRX::processData(bool bit)
       // Write data to host
       m_outBuffer[0U] = m_lostCount == (MAX_SYNC_FRAMES - 1U) ? 0x01U : 0x00U;
       writeRSSIData(m_outBuffer);
+      m_frameCount++;
 
       // Start the next frame
       ::memset(m_outBuffer, 0x00U, YSF_FRAME_LENGTH_BYTES + 3U);
