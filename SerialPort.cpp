@@ -577,8 +577,13 @@ void CSerialPort::setMode(MMDVM_STATE modemState)
   m_modemState = modemState;
 
   if ((modemState != STATE_IDLE) && (m_modemState_prev != modemState)) {
-    DEBUG1("setMode: configuring Hardware");
-    io.ifConf(modemState, true);
+    if (io.isAutoDetectEnabled() && m_dcd && m_modemState_prev == STATE_DMR && modemState == STATE_YSF) {
+      DEBUG1("AUTO: locking YSF without RF reconfiguration");
+      m_modemState_prev = STATE_YSF;
+    } else {
+      DEBUG1("setMode: configuring Hardware");
+      io.ifConf(modemState, true);
+    }
   }
 
   io.setMode(m_modemState);

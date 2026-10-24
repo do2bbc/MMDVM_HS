@@ -159,6 +159,10 @@ void CIO::process()
   }
 
   if (m_autoDetectEnable && m_modemState == STATE_IDLE && m_modemState_prev != STATE_DMR) {
+#if defined(DUPLEX)
+    dmrIdleRX.reset();
+    dmrRX.reset();
+#endif
     dmrDMORX.reset();
     ysfRX.reset();
     setDecode(false);
@@ -218,9 +222,23 @@ void CIO::process()
       if (ysfRX.isLocked()) {
         ysfRX.databit(bit);
       } else {
+#if defined(DUPLEX)
+        if (m_duplex) {
+          if (m_tx)
+            dmrRX.databit(bit, control);
+          else
+            dmrIdleRX.databit(bit);
+          ysfRX.databit(bit);
+        } else {
+          dmrDMORX.databit(bit);
+          if (!dmrDMORX.isLocked())
+            ysfRX.databit(bit);
+        }
+#else
         dmrDMORX.databit(bit);
         if (!dmrDMORX.isLocked())
           ysfRX.databit(bit);
+#endif
       }
     } else switch (m_modemState_prev) {
       case STATE_DSTAR:
@@ -361,6 +379,11 @@ void CIO::write(uint8_t* data, uint16_t length, const uint8_t* control)
 uint16_t CIO::getSpace() const
 {
   return m_txBuffer.getSpace();
+}
+
+bool CIO::isAutoDetectEnabled() const
+{
+  return m_autoDetectEnable;
 }
 
 bool CIO::hasTXOverflow()
