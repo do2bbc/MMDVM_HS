@@ -34,6 +34,7 @@ public:
   void databit(bool bit);
 
   void reset();
+  bool isLocked() const;
 
 private:
   YSFRX_STATE m_state;

@@ -38,6 +38,7 @@ public:
   void setColorCode(uint8_t colorCode);
 
   void reset();
+  bool isLocked() const;
 
 private:
   uint64_t    m_patternBuffer;

@@ -37,6 +37,7 @@ m_txBuffer(1024U),
 m_LoDevYSF(false),
 m_ledCount(0U),
 m_scanEnable(false),
+m_autoDetectEnable(false),
 m_scanPauseCnt(0U),
 m_scanPos(0U),
 m_autoPatternBuffer(0U),
@@ -157,6 +158,13 @@ void CIO::process()
     return;
   }
 
+  if (m_autoDetectEnable && m_modemState == STATE_IDLE && m_modemState_prev != STATE_DMR) {
+    dmrDMORX.reset();
+    ysfRX.reset();
+    setDecode(false);
+    ifConf(STATE_DMR, true);
+  }
+
   // Switch off the transmitter if needed
   if (m_txBuffer.getData() == 0U && m_tx) {
     if(m_cwid_state) { // check for CW ID end of transmission
@@ -203,10 +211,18 @@ void CIO::process()
   if (m_rxBuffer.getData() >= 1U) {
     m_rxBuffer.get(bit, control);
 
-    if (m_modemState == STATE_IDLE && m_scanEnable && m_dmrEnable && m_ysfEnable && !m_dcd)
+    if (m_modemState == STATE_IDLE && (m_scanEnable || m_autoDetectEnable) && m_dmrEnable && m_ysfEnable && !m_dcd)
       processAutoDetect(bit);
 
-    switch (m_modemState_prev) {
+    if (m_autoDetectEnable && m_modemState == STATE_IDLE) {
+      if (ysfRX.isLocked()) {
+        ysfRX.databit(bit);
+      } else {
+        dmrDMORX.databit(bit);
+        if (!dmrDMORX.isLocked())
+          ysfRX.databit(bit);
+      }
+    } else switch (m_modemState_prev) {
       case STATE_DSTAR:
         dstarRX.databit(bit);
         break;
@@ -272,6 +288,7 @@ void CIO::processAutoDetect(bool bit)
 void CIO::start()
 {
   m_TotalModes = 0U;
+  m_autoDetectEnable = false;
 
   if(m_dstarEnable) {
     m_Modes[m_TotalModes] = STATE_DSTAR;
@@ -299,7 +316,11 @@ void CIO::start()
   }
 
 #if defined(ENABLE_SCAN_MODE)
-  if(m_TotalModes > 1U)
+  if (m_TotalModes == 2U && m_dmrEnable && m_ysfEnable) {
+    m_scanEnable = false;
+    m_autoDetectEnable = true;
+    DEBUG1("AUTO: parallel DMR/YSF detection enabled");
+  } else if(m_TotalModes > 1U)
     m_scanEnable = true;
   else {
     m_scanEnable = false;

@@ -64,6 +64,11 @@ void CDMRDMORX::reset()
   m_endPtr    = NOENDPTR;
 }
 
+bool CDMRDMORX::isLocked() const
+{
+  return m_state != DMORXS_NONE;
+}
+
 void CDMRDMORX::databit(bool bit)
 {
   WRITE_BIT1(m_buffer, m_dataPtr, bit);
@@ -291,4 +296,3 @@ void CDMRDMORX::writeRSSIData(uint8_t* frame)
   serial.writeDMRData(true, frame, DMR_FRAME_LENGTH_BYTES + 1U);
 #endif
 }
-

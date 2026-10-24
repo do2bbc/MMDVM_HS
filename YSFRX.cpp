@@ -67,6 +67,11 @@ void CYSFRX::reset()
     m_syncCandidateAges[i] = SYNC_CANDIDATE_EXPIRED;
 }
 
+bool CYSFRX::isLocked() const
+{
+  return m_state != YSFRXS_NONE;
+}
+
 void CYSFRX::databit(bool bit)
 {
   if (m_state == YSFRXS_NONE)
