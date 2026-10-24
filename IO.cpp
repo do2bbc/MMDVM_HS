@@ -21,6 +21,9 @@
 #include "Config.h"
 #include "Globals.h"
 #include "IO.h"
+#include "DMRDefines.h"
+#include "Utils.h"
+#include "YSFDefines.h"
 
 uint32_t    m_frequency_rx;
 uint32_t    m_frequency_tx;
@@ -36,6 +39,7 @@ m_ledCount(0U),
 m_scanEnable(false),
 m_scanPauseCnt(0U),
 m_scanPos(0U),
+m_autoPatternBuffer(0U),
 m_ledValue(true),
 m_watchdog(0U),
 m_int1counter(0U),
@@ -199,6 +203,9 @@ void CIO::process()
   if (m_rxBuffer.getData() >= 1U) {
     m_rxBuffer.get(bit, control);
 
+    if (m_modemState == STATE_IDLE && m_scanEnable && m_dmrEnable && m_ysfEnable && !m_dcd)
+      processAutoDetect(bit);
+
     switch (m_modemState_prev) {
       case STATE_DSTAR:
         dstarRX.databit(bit);
@@ -233,6 +240,33 @@ void CIO::process()
     }
 
   }
+}
+
+void CIO::processAutoDetect(bool bit)
+{
+  m_autoPatternBuffer <<= 1;
+  if (bit)
+    m_autoPatternBuffer |= 0x01U;
+
+  const uint8_t ysfErrors = countBits64((m_autoPatternBuffer & YSF_SYNC_BITS_MASK) ^ YSF_SYNC_BITS);
+  if (ysfErrors <= 3U)
+    DEBUG3("AUTO: YSF sync profile/errors", uint8_t(m_modemState_prev), ysfErrors);
+
+  uint8_t dmrErrors = countBits64((m_autoPatternBuffer & DMR_SYNC_BITS_MASK) ^ DMR_MS_DATA_SYNC_BITS);
+  uint8_t errors = countBits64((m_autoPatternBuffer & DMR_SYNC_BITS_MASK) ^ DMR_S2_DATA_SYNC_BITS);
+  if (errors < dmrErrors)
+    dmrErrors = errors;
+
+  errors = countBits64((m_autoPatternBuffer & DMR_SYNC_BITS_MASK) ^ DMR_MS_VOICE_SYNC_BITS);
+  if (errors < dmrErrors)
+    dmrErrors = errors;
+
+  errors = countBits64((m_autoPatternBuffer & DMR_SYNC_BITS_MASK) ^ DMR_S2_VOICE_SYNC_BITS);
+  if (errors < dmrErrors)
+    dmrErrors = errors;
+
+  if (dmrErrors <= 3U)
+    DEBUG3("AUTO: DMR sync profile/errors", uint8_t(m_modemState_prev), dmrErrors);
 }
 
 void CIO::start()

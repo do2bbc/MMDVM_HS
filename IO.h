@@ -169,6 +169,8 @@ public:
 #endif
 
 private:
+  void               processAutoDetect(bool bit);
+
   uint8_t            m_RX_N_divider;
   uint16_t           m_RX_F_divider;
   uint8_t            m_TX_N_divider;
@@ -184,6 +186,7 @@ private:
   uint8_t            m_scanPos;
   uint8_t            m_TotalModes;
   MMDVM_STATE        m_Modes[6];
+  uint64_t           m_autoPatternBuffer;
   bool               m_ledValue;
   volatile uint32_t  m_watchdog;
   volatile uint16_t  m_int1counter;

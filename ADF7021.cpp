@@ -202,6 +202,8 @@ void CIO::ifConf(MMDVM_STATE modemState, bool reset)
 
   uint32_t frequency_tx_tmp, frequency_rx_tmp;
 
+  m_autoPatternBuffer = 0U;
+
   if (modemState != STATE_CWID && modemState != STATE_POCSAG)
     m_modemState_prev = modemState;
 
